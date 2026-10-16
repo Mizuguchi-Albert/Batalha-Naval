@@ -254,3 +254,22 @@ h1{font-size:42px;line-height:1.12}
 .sound-btn[aria-pressed=false]{opacity:.65;background:linear-gradient(135deg,#f1e6cc,#c9b48a)}
 .sound-btn[aria-pressed=false] .slash{display:inline}
 .sound-btn:active{transform:translateY(2px);box-shadow:inset 0 1px 0 #fff4c9,0 1px 0 #6a452a}
+
+/* Passo 4: bala tripla, tesouro, kraken e nomes */
+.target-head{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.target-head .label{margin-bottom:0}
+#tripleBtn[aria-pressed=true]{background:linear-gradient(#ffd08a,#ff9d3a);box-shadow:inset 0 3px 0 #ffe7b8,0 0 0 3px #fff7c9,0 0 18px 6px #ffb347}
+.cell.tri-prev{background:#ffb34773!important;box-shadow:inset 0 0 0 2px #ffdf8a}
+.cell.treasure{background:none!important}
+.chest-mark{position:absolute;width:10%;height:10%;display:grid;place-items:center;pointer-events:none}
+.chest-mark img{width:84%;height:84%;object-fit:contain;filter:drop-shadow(0 2px 2px #0006)}
+.chest-mark.mine{opacity:.6}
+.hint-area{position:absolute;border:3px dashed #ffe08a;border-radius:10px;box-shadow:0 0 14px 2px #b56cff99,inset 0 0 18px #b56cff66;animation:hintPulse 1.6s ease-in-out infinite;pointer-events:none}
+@keyframes hintPulse{50%{box-shadow:0 0 22px 6px #b56cffcc,inset 0 0 26px #b56cff99}}
+.tentacle{position:absolute;transform-origin:50% 100%;pointer-events:none}
+.tentacle svg{width:100%;height:100%;display:block;filter:drop-shadow(0 3px 3px #0005)}
+.names{color:#19466d}
+.names summary{cursor:pointer;font-weight:900;font-size:14px}
+.names-list{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 10px;align-items:center;margin-top:10px;font-size:14px;font-weight:900}
+.names-list input{min-width:0;padding:6px 10px;border-radius:9px;border:2px solid #b8cbd0;background:#fffdf0;color:#19466d;font-size:16px}
+.dock .nick{display:block;font-family:var(--body);font-size:12px;font-weight:800;opacity:.8;letter-spacing:0}

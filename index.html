@@ -7,7 +7,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Nunito:wght@600;700;800;900&display=swap">
 <meta name="theme-color" content="#061f2b">
-<link rel="stylesheet" href="styles.css?v=som-20261016">
+<link rel="stylesheet" href="styles.css?v=extras-20261016">
 </head>
 <body>
 
@@ -65,6 +65,7 @@
     <div id="placeBoard"></div>
     <div class="panel" style="display:flex;flex-direction:column;gap:12px">
       <div class="dock" id="dock"></div>
+      <details class="names" id="namesBox"><summary>Batizar os navios</summary><div class="names-list" id="namesList"></div></details>
       <div class="row">
         <button class="btn small alt" id="rotate">Girar navio</button>
         <button class="btn small alt" id="random">Espalhar ao acaso</button>
@@ -86,7 +87,10 @@
   </div>
   <div class="arena">
     <div>
-      <div class="label" id="targetLabel"></div>
+      <div class="target-head">
+        <div class="label" id="targetLabel"></div>
+        <button class="btn small" id="tripleBtn" aria-pressed="false">Bala tripla × 1</button>
+      </div>
       <div id="targetBoard"></div>
     </div>
     <div class="side">
@@ -189,6 +193,13 @@ window.SND = (function(){
         f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 2.5;
         env(g, t+d, .01, .32, .15); o.connect(f); f.connect(g); g.connect(sfxBus); o.start(t+d); o.stop(t+d+.2);
       }); },
+    kraken(){ if(!ok()) return; const t = ctx.currentTime;
+      osc('sawtooth', 58, 38, t, 1.6, .3); osc('sine', 110, 65, t+.15, 1.2, .3);
+      hiss(t, 1.8, .45, 'lowpass', 420, 70);
+      for(let i=0;i<10;i++){ const s = t + .3 + Math.random()*1.3, f = 200+Math.random()*300; osc('sine', f, f*2.4, s, .07, .12); } },
+    treasure(){ if(!ok()) return; const t = ctx.currentTime;
+      [84,88,91,96,100].forEach((n,i)=>{ const f = mtof(n); osc('triangle', f, f, t+i*.07, .25, .22); });
+      hiss(t, .5, .12, 'highpass', 8000, 6000); },
     click(){ if(!ok()) return; osc('triangle', 700, 520, ctx.currentTime, .06, .25); },
     fanfare(lost){ if(!ok()) return; const t = ctx.currentTime + .05;
       const notes = lost ? [69, 67, 65, 62] : [62, 66, 69, 74, 74];
@@ -289,14 +300,22 @@ const SAY = {
   gotMiss:['{p} errou! Sua frota está a salvo.','Ufa! A bala de {p} caiu na água.'],
   gotHit:['{p} acertou {sua} {n}! Apaguem o fogo!','Ai! {Sua} {n} foi atingid{o}!'],
   gotSunk:['{p} afundou {sua} {n}! Que tristeza, marujo!'],
+  treasure:['Achou o tesouro escondido! Ganhou mais uma bala tripla!','Baú do tesouro! Mais uma bala tripla para você!'],
+  gotTreasure:['{p} achou o tesouro escondido no seu mar!'],
+  kraken:'O Kraken acordou e mostrou uma área com navio por perto!',
+  gotKraken:'O Kraken acordou e deu uma pista para {p}!',
+  triple:'Bala tripla! Fogo nos três canhões!',
   again:' Atira de novo!'
 };
+const NAME_IDEAS = ['Pérola do Mar','Tubarão Feroz','Relâmpago','Sereia Azul','Pequeno Valente'];
+const shipLabel = (p, idx) => { const n = p && p.names && p.names[idx]; return n ? `${FLEET[idx].name} ${n}` : FLEET[idx].name; };
 const pick = a => a[Math.floor(Math.random()*a.length)];
+const esc = t => String(t).replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 // encaixa o nome do navio com o artigo certo (o Galeão, a Fragata...)
-function fmt(t, idx, p){
+function fmt(t, idx, p, label){
   const f = idx==null ? null : FLEET[idx];
-  if(f) t = t.replace('{a}', (f.f?'a ':'o ')+f.name).replace('{A}', (f.f?'A ':'O ')+f.name)
-    .replace('{sua}', f.f?'sua':'seu').replace('{Sua}', f.f?'Sua':'Seu').replace('{o}', f.f?'a':'o').replace('{n}', f.name);
+  if(f) t = t.replace('{sua}', f.f?'sua':'seu').replace('{Sua}', f.f?'Sua':'Seu').replace('{o}', f.f?'a':'o');
+  if(f){ const n = label || f.name; t = t.replace('{a}', (f.f?'a ':'o ')+n).replace('{A}', (f.f?'A ':'O ')+n).replace('{n}', n); }
   return t.replace('{p}', p||'');
 }
 
@@ -481,7 +500,8 @@ function say(t){
 // shots de um capitão = tiros que ele RECEBEU (0 nada, 1 água, 2 fogo).
 let P = [], cur = 0, busy = false, bonus = true, online = false, over = false;
 function newPlayer(name){
-  return {name, ships:[], occ:Array.from({length:10},()=>Array(10).fill(-1)), shots:Array.from({length:10},()=>Array(10).fill(0))};
+  return {name, ships:[], occ:Array.from({length:10},()=>Array(10).fill(-1)), shots:Array.from({length:10},()=>Array(10).fill(0)),
+    names:[], triple:1, missStreak:0, treasure:null, treasureFound:false, foundAt:null, hints:[]};
 }
 function canPlace(p, len, r, c, horiz, ignore){
   for(let i=0;i<len;i++){
@@ -515,11 +535,32 @@ function randomFleet(p){
 // resolve um tiro contra a frota de "def" (só quem tem a frota escondida faz isso)
 function resolveShot(def, r, c){
   const idx = def.occ[r][c];
-  if(idx<0) return {r, c, hit:false, sunk:null, win:false};
+  if(idx<0){
+    const treasure = !!def.treasure && !def.treasureFound && def.treasure[0]===r && def.treasure[1]===c;
+    let hint = null;
+    if(treasure){ def.treasureFound = true; def.missStreak = 0; }
+    else if(++def.missStreak >= 4){ def.missStreak = 0; hint = makeHint(def); }
+    return {r, c, hit:false, sunk:null, win:false, treasure, hint};
+  }
+  def.missStreak = 0;
   const s = def.ships[idx]; s.hits++;
   let sunk = null;
-  if(s.hits===s.len){ s.sunk = true; sunk = {idx:s.idx, name:s.name, len:s.len, r:s.r, c:s.c, horiz:s.horiz}; }
-  return {r, c, hit:true, sunk, win:def.ships.every(x=>x.sunk)};
+  if(s.hits===s.len){ s.sunk = true; sunk = {idx:s.idx, name:s.name, label:shipLabel(def, s.idx), len:s.len, r:s.r, c:s.c, horiz:s.horiz}; }
+  return {r, c, hit:true, sunk, win:def.ships.every(x=>x.sunk), treasure:false, hint:null};
+}
+// o Kraken aponta uma área 3x3 que tem um pedaço de navio ainda não atingido
+function makeHint(def){
+  const open = [];
+  def.ships.forEach(s=>{ if(!s.sunk) cellsOf(s).forEach(([r,c])=>{ if(!def.shots[r][c]) open.push([r,c]); }); });
+  if(!open.length) return null;
+  const [r,c] = pick(open), j = ()=>Math.floor(Math.random()*3)-1, cl = v=>Math.max(0, Math.min(9, v));
+  return {r:cl(r+j()), c:cl(c+j())};
+}
+// o tesouro fica numa casa de água escolhida ao acaso quando a frota fica pronta
+function placeTreasure(p){
+  const water = [];
+  for(let r=0;r<10;r++) for(let c=0;c<10;c++) if(p.occ[r][c]<0) water.push([r,c]);
+  p.treasure = pick(water); p.treasureFound = false;
 }
 function statsOf(i){
   const g = P[1-i].shots.flat();
@@ -563,6 +604,7 @@ function startPlacing(i){
   PL = {i, sel:0, horiz:true, hover:null};
   $('placeTitle').textContent = `${captain(P[i].name)}, posicione sua frota`;
   PB = makeBoard($('placeBoard'));
+  drawNames();
   PB.board.addEventListener('contextmenu', e=>{ e.preventDefault(); rotate(); });
   PB.board.addEventListener('mouseleave', ()=>{ PL.hover=null; drawPreview(); });
   PB.cells.flat().forEach(b=>{
@@ -595,7 +637,18 @@ document.addEventListener('keydown', e=>{ if((e.key==='r'||e.key==='R') && !$('p
 $('rotate').onclick = rotate;
 $('random').onclick = ()=>{ randomFleet(P[PL.i]); PL.sel=null; drawPlace(); P[PL.i].ships.forEach(s=>cellsOf(s).forEach(([r,c])=>splash(PB,r,c))); SND.thunk(); setTimeout(SND.thunk, 120); };
 $('clear').onclick = ()=>{ const p=P[PL.i]; FLEET.forEach((_,k)=>removeShip(p,k)); PL.sel=0; drawPlace(); };
+function drawNames(){
+  const p = P[PL.i], list = $('namesList'); list.innerHTML = '';
+  FLEET.forEach((f,k)=>{
+    const id = 'nome'+k, l = document.createElement('label'), inp = document.createElement('input');
+    l.htmlFor = id; l.textContent = f.name;
+    inp.id = id; inp.type = 'text'; inp.maxLength = 16; inp.placeholder = NAME_IDEAS[k]; inp.value = p.names[k] || '';
+    inp.oninput = ()=>{ p.names[k] = inp.value.trim(); drawDock(); };
+    list.append(l, inp);
+  });
+}
 $('ready').onclick = ()=>{
+  placeTreasure(P[PL.i]);
   if(online){ NET.send({t:'ready'}); ON.meReady = true; maybeStartOnline(); return; }
   if(PL.i===0) overlay(captain(P[1].name), `Agora é sua vez de esconder a frota. ${captain(P[0].name)}, nada de espiar!`, 'Esconder minha frota', ()=>startPlacing(1));
   else { cur = 0; overlay(captain(P[0].name), 'As frotas estão escondidas. Você dispara primeiro!', 'Ao ataque!', startBattle); }
@@ -604,16 +657,21 @@ function drawPlace(){
   const p = P[PL.i];
   PB.ships.innerHTML = '';
   p.ships.forEach(s=>{ if(s) shipEl(PB, s); });
+  drawDock();
+  $('ready').disabled = FLEET.some((_,k)=>!p.ships[k]);
+  drawPreview();
+}
+function drawDock(){
+  const p = P[PL.i];
   const dock = $('dock'); dock.innerHTML = '';
   FLEET.forEach((f,k)=>{
     const b = document.createElement('button');
     b.className = (PL.sel===k?'sel ':'') + (p.ships[k]?'done':'');
-    b.innerHTML = `<img src="${shipSrc(f)}" alt=""><span>${f.name}</span><span class="len">${f.len} casas</span>`;
+    b.innerHTML = `<img src="${shipSrc(f)}" alt=""><span>${f.name}<span class="nick"></span></span><span class="len">${f.len} casas</span>`;
+    b.querySelector('.nick').textContent = p.names[k] || '';
     b.onclick = ()=>{ if(p.ships[k]){ PL.horiz = p.ships[k].horiz; removeShip(p,k); } PL.sel = k; drawPlace(); };
     dock.appendChild(b);
   });
-  $('ready').disabled = FLEET.some((_,k)=>!p.ships[k]);
-  drawPreview();
 }
 function drawPreview(){
   PB.cells.flat().forEach(b=>b.classList.remove('prev-ok','prev-bad'));
@@ -642,16 +700,105 @@ function renderBattle(){
     markCell(TB.cells[r][c], foe.shots[r][c]);
     markCell(OB.cells[r][c], me.shots[r][c]);
     TB.cells[r][c].onclick = ()=>fire(r,c);
+    TB.cells[r][c].onmouseenter = ()=>triPreview(r,c);
   }
+  TB.board.addEventListener('mouseleave', ()=>triPreview(null));
+  if(foe.foundAt){ chestEl(TB, ...foe.foundAt); TB.cells[foe.foundAt[0]][foe.foundAt[1]].classList.add('treasure'); }
+  if(me.treasure) chestEl(OB, ...me.treasure, !me.treasureFound);
   foe.ships.forEach(s=>{ if(s && s.sunk){ shipEl(TB, s, true); cellsOf(s).forEach(([r,c])=>TB.cells[r][c].classList.add('sunk')); } });
   me.ships.forEach(s=>shipEl(OB, s, s.sunk));
-  drawTurn(); drawFleet();
+  drawTurn(); drawFleet(); drawHints();
 }
 function drawTurn(){
   const t = $('turn');
   if(online){ t.textContent = ON.myTurn ? 'Sua vez de disparar!' : `Vez de ${P[1].name}...`; t.classList.toggle('wait', !ON.myTurn); }
   else { t.textContent = `Vez de ${P[cur].name}`; t.classList.remove('wait'); }
   if(TB) TB.board.classList.toggle('locked', busy || !myTurn());
+  drawTriple();
+}
+/* ---------- bala tripla, tesouro e kraken ---------- */
+let armed = false;
+function drawTriple(){
+  const me = P[viewer()], b = $('tripleBtn'); if(!me) return;
+  const can = !busy && !over && myTurn() && me.triple > 0;
+  if(!can) armed = false;
+  b.textContent = `Bala tripla × ${me.triple}`;
+  b.disabled = !can; b.setAttribute('aria-pressed', armed);
+  if(!armed) triPreview(null);
+}
+$('tripleBtn').onclick = ()=>{ armed = !armed; drawTriple(); if(armed) say('Bala tripla pronta! Escolha a casa do meio.'); };
+const triCells = (r,c) => [c-1,c,c+1].filter(cc=>cc>=0 && cc<10).map(cc=>[r,cc]);
+function triPreview(r, c){
+  if(!TB) return;
+  TB.cells.flat().forEach(b=>b.classList.remove('tri-prev'));
+  if(!armed || r==null) return;
+  triCells(r,c).forEach(([rr,cc])=>TB.cells[rr][cc].classList.add('tri-prev'));
+}
+function chestEl(B, r, c, mine){
+  const d = document.createElement('div'); d.className = 'chest-mark' + (mine ? ' mine' : '');
+  d.style.left = c*10+'%'; d.style.top = r*10+'%';
+  d.innerHTML = `<img src="${A}aventura/tesouro.webp" alt="">`;
+  B.ships.appendChild(d); return d;
+}
+function drawHints(){
+  if(!TB) return;
+  const foe = P[1-viewer()];
+  TB.fx.querySelectorAll('.hint-area').forEach(e=>e.remove());
+  (foe.hints||[]).forEach(h=>{
+    const r0 = Math.max(0,h.r-1), r1 = Math.min(9,h.r+1), c0 = Math.max(0,h.c-1), c1 = Math.min(9,h.c+1);
+    const d = document.createElement('div'); d.className = 'hint-area';
+    d.style.left = c0*10+'%'; d.style.top = r0*10+'%'; d.style.width = (c1-c0+1)*10+'%'; d.style.height = (r1-r0+1)*10+'%';
+    TB.fx.appendChild(d);
+  });
+}
+const inHint = (h, r, c) => Math.abs(h.r-r)<=1 && Math.abs(h.c-c)<=1;
+const TENTACLE = '<svg viewBox="0 0 40 120" aria-hidden="true"><path d="M20 120C6 96 34 78 18 56 6 40 30 24 22 6c-1-4-5-4-6 0 6 16-16 32-4 50 14 22-14 40-2 64Z" fill="#7b3fa0" stroke="#3d1b52" stroke-width="2"/><g fill="#e6b8f0"><circle cx="16" cy="100" r="2.6"/><circle cx="21" cy="80" r="2.4"/><circle cx="15" cy="62" r="2.2"/><circle cx="19" cy="42" r="2"/><circle cx="18" cy="24" r="1.6"/></g></svg>';
+async function krakenFx(B, h){
+  SND.kraken();
+  const {cs} = cellCenter(B, 0, 0);
+  const spots = [[h.r+1,h.c-1],[h.r+1,h.c+1],[h.r,h.c]].map(([r,c])=>[Math.max(0,Math.min(9,r)),Math.max(0,Math.min(9,c))]);
+  const anims = spots.map(([r,c],i)=>{
+    const {x,y} = cellCenter(B, r, c);
+    const t = document.createElement('div'); t.className = 'tentacle'; t.innerHTML = TENTACLE;
+    t.style.width = cs*.8+'px'; t.style.height = cs*2.4+'px'; t.style.left = (x-cs*.4)+'px'; t.style.top = (y+cs*.4-cs*2.4)+'px';
+    B.fx.appendChild(t);
+    const f = RM ? [{opacity:0},{opacity:1},{opacity:0}] : [
+      {transform:'translateY(40%) scaleY(.1)',opacity:0},
+      {transform:'translateY(0) scaleY(1) rotate(-10deg)',opacity:1,offset:.25},
+      {transform:'rotate(12deg)',offset:.45},{transform:'rotate(-12deg)',offset:.65},{transform:'rotate(8deg)',opacity:1,offset:.8},
+      {transform:'translateY(40%) scaleY(.1)',opacity:0}];
+    return t.animate(f,{duration:T(1900),delay:T(i*120),easing:'ease-in-out',fill:'both'}).finished.then(()=>t.remove(),()=>t.remove());
+  });
+  const mid = cellCenter(B, h.r, h.c);
+  if(!RM) for(let i=0;i<3;i++) particle(B,'ring',mid.x,mid.y,cs*3,[{transform:tr(0,0,.3),opacity:.8},{transform:tr(0,0,1.2),opacity:0}],1200,i*300);
+  await Promise.all(anims);
+}
+function treasureFx(B, r, c){
+  SND.treasure();
+  const chest = chestEl(B, r, c);
+  chest.firstChild.animate(RM?[{opacity:0},{opacity:1}]:[{transform:'translateY(40%) scale(.3)',opacity:0},{transform:'translateY(-30%) scale(1.5)',opacity:1,offset:.5},{transform:'none',opacity:1}],{duration:T(700),easing:EASE_OUT});
+  const {x,y,cs} = cellCenter(B, r, c);
+  if(!RM) for(let i=0;i<10;i++){
+    const ang = Math.PI*2*i/10, dist = cs*(.8+Math.random()*.6);
+    particle(B,'spark',x,y,cs*.14,[{transform:tr(0,0),opacity:1},{transform:tr(Math.cos(ang)*dist,Math.sin(ang)*dist-cs*.5,1.2,180),opacity:0}],800,100);
+  }
+}
+// tesouro e kraken depois de um tiro; "sea" é o mar onde o tiro caiu
+async function showExtras(B, res, sea, attacker){
+  if(res.treasure){
+    sea.foundAt = [res.r, res.c]; sea.treasureFound = true;
+    B.cells[res.r][res.c].classList.add('treasure');
+    if(attacker){ P[viewer()].triple++; }
+    else B.ships.querySelectorAll('.chest-mark.mine').forEach(e=>e.remove());
+    treasureFx(B, res.r, res.c);
+    await wait(700);
+  }
+  if(res.hint){
+    if(attacker){ sea.hints = [res.hint]; say(SAY.kraken); }
+    else say(fmt(SAY.gotKraken, null, P[1].name));
+    await krakenFx(B, res.hint);
+    if(attacker) drawHints();
+  }
 }
 function markCell(b, v){
   b.classList.toggle('miss', v===1); b.classList.toggle('hit', v===2); b.classList.toggle('shot', v>0);
@@ -661,7 +808,8 @@ function drawFleet(){
   const vi = viewer(), foe = P[1-vi];
   $('enemyFleet').innerHTML = FLEET.map((f,k)=>{
     const gone = foe.ships[k] && foe.ships[k].sunk;
-    return `<div class="${gone?'gone':''}"><img src="${shipSrc(f)}" alt=""><span>${f.name}${gone?' (afundado)':''}</span></div>`;
+    const nm = gone ? (foe.ships[k].label || f.name) : f.name;
+    return `<div class="${gone?'gone':''}"><img src="${shipSrc(f)}" alt=""><span>${esc(nm)}${gone?' (afundado)':''}</span></div>`;
   }).join('');
   const s = statsOf(vi);
   $('stats').textContent = `Tiros: ${s.shots} · Acertos: ${s.hits} · Pontaria: ${s.acc}%`;
@@ -678,25 +826,45 @@ async function showHit(B, cells, res){
     cellsOf(res.sunk).forEach(([rr,cc])=>cells[rr][cc].classList.add('sunk'));
   }
 }
-async function fire(r, c){
+async function shootOne(r, c, more, keep){
   const vi = viewer(), foe = P[1-vi];
-  if(busy || over) return;
-  if(!myTurn()){ say(`Calma, marujo! Agora é a vez de ${P[1].name}.`); return; }
-  if(foe.shots[r][c]) return;
-  busy = true; drawTurn();
   let resP;
-  if(online){ resP = new Promise(res=>{ ON.pending = res; }); NET.send({t:'shot', r, c}); }
+  if(online){ resP = new Promise(res=>{ ON.pending = res; }); NET.send({t:'shot', r, c, more, keep}); }
   else resP = Promise.resolve(resolveShot(foe, r, c));
   await cannonball(TB, r, c);
   const res = await resP;
-  if(!res) return;  // conexão caiu
+  if(!res) return null;  // conexão caiu
   foe.shots[r][c] = res.hit ? 2 : 1;
   if(res.sunk) foe.ships[res.sunk.idx] = Object.assign(foe.ships[res.sunk.idx] || {}, res.sunk, {sunk:true});
-  say(res.sunk ? fmt(pick(SAY.sunk), res.sunk.idx) : pick(res.hit ? SAY.hit : SAY.miss));
+  if(res.hit){ foe.hints = foe.hints.filter(h=>!inHint(h, r, c)); drawHints(); }
+  say(res.sunk ? fmt(pick(SAY.sunk), res.sunk.idx, '', res.sunk.label) : res.treasure ? pick(SAY.treasure) : pick(res.hit ? SAY.hit : SAY.miss));
   await showHit(TB, TB.cells, res);
-  drawFleet();
-  if(res.win){ await wait(700); return victory(vi); }
-  if(res.hit && bonus){
+  await showExtras(TB, res, foe, true);
+  drawFleet(); drawTriple();
+  return res;
+}
+async function fire(r, c){
+  const vi = viewer(), me = P[vi], foe = P[1-vi];
+  if(busy || over) return;
+  if(!myTurn()){ say(`Calma, marujo! Agora é a vez de ${P[1].name}.`); return; }
+  let list;
+  if(armed){
+    list = triCells(r,c).filter(([rr,cc])=>!foe.shots[rr][cc]);
+    if(!list.length) return;
+    me.triple--; armed = false; say(SAY.triple);
+  } else {
+    if(foe.shots[r][c]) return;
+    list = [[r,c]];
+  }
+  busy = true; drawTurn();
+  let keep = false;
+  for(let i=0;i<list.length;i++){
+    const res = await shootOne(list[i][0], list[i][1], i<list.length-1, keep);
+    if(!res) return;
+    if(res.win){ await wait(700); return victory(vi); }
+    keep = keep || (res.hit && bonus) || !!res.treasure;
+  }
+  if(keep){
     $('say').textContent += SAY.again;
     busy = false; drawTurn(); return;
   }
@@ -707,19 +875,26 @@ async function fire(r, c){
     cur = 1-cur; busy = false; renderBattle(); say(`${captain(P[cur].name)}, sua vez de disparar!`);
   });
 }
-// dois aparelhos: o rival atirou na sua frota
-async function incomingShot(r, c){
+// dois aparelhos: o rival atirou na sua frota. O resultado sai na hora;
+// as animações entram numa fila para a bala tripla não embaralhar.
+function incomingShot(r, c, more, keep){
   const me = P[0];
   if(me.shots[r][c]) return;
   const res = resolveShot(me, r, c);
   me.shots[r][c] = res.hit ? 2 : 1;
   NET.send(Object.assign({t:'result'}, res));
+  ON.queue = (ON.queue || Promise.resolve()).then(()=>animateIncoming(res, more, keep)).catch(()=>{});
+}
+async function animateIncoming(res, more, keep){
+  if(over && !res.win) return;
+  const me = P[0], {r, c} = res;
   await cannonball(OB, r, c);
   const idx = res.hit ? me.occ[r][c] : null;
-  say(fmt(res.sunk ? pick(SAY.gotSunk) : res.hit ? pick(SAY.gotHit) : pick(SAY.gotMiss), idx, P[1].name));
+  say(fmt(res.sunk ? pick(SAY.gotSunk) : res.hit ? pick(SAY.gotHit) : res.treasure ? pick(SAY.gotTreasure) : pick(SAY.gotMiss), idx, P[1].name, idx==null ? null : shipLabel(me, idx)));
   await showHit(OB, OB.cells, res);
+  await showExtras(OB, res, me, false);
   if(res.win){ await wait(700); return victory(1); }
-  if(!(res.hit && bonus)){ ON.myTurn = true; drawTurn(); await wait(600); say('Sua vez! Escolha o alvo.'); }
+  if(!more && !(keep || (res.hit && bonus) || res.treasure)){ ON.myTurn = true; drawTurn(); await wait(600); say('Sua vez! Escolha o alvo.'); }
 }
 function victory(i){
   over = true;
@@ -769,7 +944,7 @@ function loadPeer(){
 const NO_NET = 'Não consegui abrir a conexão. O modo em dois aparelhos funciona pelo link do jogo no GitHub, com internet nos dois aparelhos.';
 function resetOnline(){
   NET.close();
-  Object.assign(ON, {myTurn:false, meReady:false, foeReady:false, foeName:null, pending:null, started:false});
+  Object.assign(ON, {myTurn:false, meReady:false, foeReady:false, foeName:null, pending:null, started:false, queue:null});
   $('roomInfo').hidden = true; $('createRoom').disabled = false; $('joinRoom').disabled = false;
 }
 function makeCode(){ const L = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; let s=''; for(let i=0;i<4;i++) s += L[Math.floor(Math.random()*L.length)]; return s; }
@@ -826,7 +1001,7 @@ function onMsg(m){
     startPlacing(0);
     $('placeTitle').textContent = `${captain(P[0].name)}, posicione sua frota contra ${P[1].name}`;
   } else if(m.t==='ready'){ ON.foeReady = true; maybeStartOnline(); }
-  else if(m.t==='shot'){ incomingShot(m.r, m.c); }
+  else if(m.t==='shot'){ incomingShot(m.r, m.c, !!m.more, !!m.keep); }
   else if(m.t==='result'){ const p = ON.pending; ON.pending = null; p && p(m); }
   else if(m.t==='bye'){ lostConn(); }
 }
