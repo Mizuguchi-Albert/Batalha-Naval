@@ -243,3 +243,14 @@ h1{font-size:42px;line-height:1.12}
 
 
 .impact-word{position:absolute;z-index:5;white-space:nowrap;font-family:var(--display);font-weight:400;color:#fff07d;-webkit-text-stroke:1.5px #17486f;paint-order:stroke fill;text-shadow:2px 3px 0 #17486f;pointer-events:none;line-height:1.1}
+
+/* Som: dois botões de latão no topo, como a bússola */
+.sound-toggles{display:flex;gap:8px;margin-left:auto;position:relative;z-index:55}
+.masthead .edition{margin-left:auto}
+.masthead .edition + .sound-toggles{margin-left:0}
+.sound-btn{display:grid;place-items:center;width:42px;height:42px;padding:0;border:2px solid #774627;border-radius:50%;color:#5a321c;background:linear-gradient(135deg,#ffe7a4,#d5a44e);box-shadow:inset 0 1px 0 #fff4c9,0 3px 0 #6a452a;transition:transform 120ms var(--ease-out),opacity 160ms ease}
+.sound-btn svg{width:22px;height:22px}
+.sound-btn .slash{display:none}
+.sound-btn[aria-pressed=false]{opacity:.65;background:linear-gradient(135deg,#f1e6cc,#c9b48a)}
+.sound-btn[aria-pressed=false] .slash{display:inline}
+.sound-btn:active{transform:translateY(2px);box-shadow:inset 0 1px 0 #fff4c9,0 1px 0 #6a452a}

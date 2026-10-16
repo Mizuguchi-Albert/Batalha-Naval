@@ -7,13 +7,17 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Nunito:wght@600;700;800;900&display=swap">
 <meta name="theme-color" content="#061f2b">
-<link rel="stylesheet" href="styles.css?v=aventura-20261016">
+<link rel="stylesheet" href="styles.css?v=som-20261016">
 </head>
 <body>
 
 <header class="masthead">
   <div class="brand"><span class="compass" aria-hidden="true">✦</span> Batalha dos Piratas</div>
   <span class="edition">Uma aventura em família</span>
+  <div class="sound-toggles" role="group" aria-label="Som">
+    <button class="sound-btn" id="musicBtn" aria-pressed="true" aria-label="Música" title="Música"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17.5V5l11-2v12.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><circle cx="6.5" cy="17.5" r="3" fill="currentColor"/><circle cx="17.5" cy="15.5" r="3" fill="currentColor"/><path class="slash" d="M3 3l18 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>
+    <button class="sound-btn" id="sfxBtn" aria-pressed="true" aria-label="Efeitos sonoros" title="Efeitos sonoros"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path class="slash" d="M3 3l18 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>
+  </div>
 </header>
 <div class="wrap" id="menu">
   <div class="menu-story">
@@ -119,6 +123,152 @@
 </div>
 
 <script>
+/* ---------- som: tudo gerado na hora com Web Audio, sem arquivos ---------- */
+window.SND = (function(){
+  let ctx = null, master, musicBus, sfxBus, noise = null;
+  const store = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
+  const save = (k,v) => { try{ localStorage.setItem(k, v); }catch(e){} };
+  const st = { music: store('bnp-music') !== '0', sfx: store('bnp-sfx') !== '0' };
+  let musicOn = false, nextNote = 0, step = 0, timer = null, mood = 'calm';
+
+  function init(){
+    if(ctx) { if(ctx.state === 'suspended') ctx.resume(); return true; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return false;
+    ctx = new AC();
+    master = ctx.createGain(); master.gain.value = .9;
+    const comp = ctx.createDynamicsCompressor();
+    master.connect(comp); comp.connect(ctx.destination);
+    musicBus = ctx.createGain(); musicBus.gain.value = st.music ? .16 : 0; musicBus.connect(master);
+    sfxBus = ctx.createGain(); sfxBus.gain.value = st.sfx ? .75 : 0; sfxBus.connect(master);
+    noise = ctx.createBuffer(1, ctx.sampleRate*2, ctx.sampleRate);
+    const d = noise.getChannelData(0); for(let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+    return true;
+  }
+  const ok = () => ctx && st.sfx;
+  function env(g, t, a, peak, dur){ g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t+a); g.gain.exponentialRampToValueAtTime(0.0001, t+dur); }
+  function osc(type, f0, f1, t, dur, peak, bus, a=.005){
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t);
+    if(f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t+dur);
+    env(g, t, a, peak, dur); o.connect(g); g.connect(bus || sfxBus);
+    o.start(t); o.stop(t+dur+.05);
+  }
+  function hiss(t, dur, peak, type, f0, f1, q=1, bus){
+    const s = ctx.createBufferSource(); s.buffer = noise;
+    const f = ctx.createBiquadFilter(); f.type = type; f.Q.value = q;
+    f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t+dur);
+    const g = ctx.createGain(); env(g, t, .01, peak, dur);
+    s.connect(f); f.connect(g); g.connect(bus || sfxBus);
+    s.start(t, Math.random()); s.stop(t+dur+.05);
+  }
+
+  /* efeitos */
+  const fx = {
+    cannon(){ if(!ok()) return; const t = ctx.currentTime;
+      osc('sine', 140, 38, t, .45, .9); hiss(t, .35, .8, 'lowpass', 1400, 200);
+      hiss(t+.04, .5, .15, 'bandpass', 3000, 900, .8); },
+    boom(big){ if(!ok()) return; const t = ctx.currentTime, k = big ? .7 : 1;
+      osc('sine', 90, 28, t, .9, .9*k); hiss(t, 1.1, 1*k, 'lowpass', 1800, 120);
+      hiss(t+.05, .6, .35*k, 'highpass', 2500, 1200);
+      for(let i=0;i<4;i++) hiss(t+.15+Math.random()*.5, .08, .25*k, 'bandpass', 2500+Math.random()*2000, 1500, 3); },
+    splash(){ if(!ok()) return; const t = ctx.currentTime;
+      hiss(t, .55, .55, 'bandpass', 1800, 500, .9); hiss(t+.08, .35, .25, 'highpass', 4000, 2500);
+      osc('sine', 300, 900, t+.25, .06, .12); osc('sine', 380, 1100, t+.38, .05, .08); },
+    sink(){ if(!ok()) return; const t = ctx.currentTime;
+      hiss(t, 1.8, .45, 'lowpass', 500, 90);
+      osc('sawtooth', 70, 40, t, 1.6, .12);
+      for(let i=0;i<14;i++){ const s = t + Math.random()*1.6, f = 260+Math.random()*400; osc('sine', f, f*2.6, s, .07, .14); } },
+    thunk(){ if(!ok()) return; const t = ctx.currentTime;
+      osc('triangle', 240, 110, t, .14, .5); hiss(t, .06, .25, 'bandpass', 1200, 800, 2);
+      hiss(t+.05, .3, .15, 'bandpass', 1500, 600, 1); },
+    squawk(){ if(!ok()) return; const t = ctx.currentTime;
+      [0, .18].forEach(d=>{
+        const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+        o.type = 'sawtooth'; o.frequency.setValueAtTime(950, t+d); o.frequency.linearRampToValueAtTime(1500, t+d+.05); o.frequency.linearRampToValueAtTime(780, t+d+.14);
+        f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 2.5;
+        env(g, t+d, .01, .32, .15); o.connect(f); f.connect(g); g.connect(sfxBus); o.start(t+d); o.stop(t+d+.2);
+      }); },
+    click(){ if(!ok()) return; osc('triangle', 700, 520, ctx.currentTime, .06, .25); },
+    fanfare(lost){ if(!ok()) return; const t = ctx.currentTime + .05;
+      const notes = lost ? [69, 67, 65, 62] : [62, 66, 69, 74, 74];
+      const lens = lost ? [.3,.3,.3,.9] : [.14,.14,.14,.3,.9];
+      let s = t;
+      notes.forEach((n,i)=>{ const f = mtof(n); osc('square', f, f, s, lens[i], .18, sfxBus, .01); osc('triangle', f/2, f/2, s, lens[i], .25, sfxBus, .01); s += lens[i]*(i===notes.length-1?1:.95); });
+      if(!lost){ [62,66,69].forEach(n=>osc('sawtooth', mtof(n), mtof(n), s-.9, 1.2, .07)); }
+    }
+  };
+  const mtof = n => 440 * Math.pow(2, (n-69)/12);
+
+  /* música: "What Shall We Do with the Drunken Sailor" (canção tradicional), em ré dórico */
+  // [nota MIDI ou null, duração em colcheias]
+  const A=69,B=71,C=72,D=74,d=62,E=64,F=65,G=67,Cl=60;
+  const VERSE = [
+    [A,2],[A,1],[A,1],[A,2],[A,1],[A,1], [A,2],[d,2],[F,2],[A,2],
+    [G,2],[G,1],[G,1],[G,2],[G,1],[G,1], [G,2],[Cl,2],[E,2],[G,2],
+    [A,2],[A,1],[A,1],[A,2],[A,1],[A,1], [A,2],[B,2],[C,2],[D,2],
+    [C,2],[A,2],[G,2],[E,2], [d,4],[d,4]
+  ];
+  const CHORUS = [
+    [A,4],[A,4], [A,2],[d,2],[F,2],[A,2],
+    [G,4],[G,4], [G,2],[Cl,2],[E,2],[G,2],
+    [A,4],[A,4], [A,2],[B,2],[C,2],[D,2],
+    [C,2],[A,2],[G,2],[E,2], [d,4],[d,4]
+  ];
+  const SONG = VERSE.concat(CHORUS);
+  const CHORDS = [50,50,48,48,50,50,48,50]; // ré, ré, dó, dó, ré, ré, dó, ré (um por compasso)
+  let melIdx = 0, melLeft = 0, bar = 0, eighth = 0;
+  function accordion(f, t, dur, peak){
+    const g = ctx.createGain(), lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t+.03);
+    g.gain.setValueAtTime(peak, t+dur*.8); g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    [-6, 6].forEach(det=>{ const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = det; o.connect(lp); o.start(t); o.stop(t+dur+.05); });
+    lp.connect(g); g.connect(musicBus);
+  }
+  function tick(){
+    const spb = mood === 'tense' ? .19 : .22; // segundos por colcheia
+    while(nextNote < ctx.currentTime + .25){
+      const t = nextNote;
+      // melodia
+      if(melLeft <= 0){
+        const [n, len] = SONG[melIdx]; melIdx = (melIdx+1) % SONG.length; melLeft = len;
+        if(n){ const f = mtof(n); accordion(f, t, len*spb*.92, .5); osc('square', f*2, f*2, t, len*spb*.6, .05, musicBus, .01); }
+      }
+      melLeft--;
+      // acompanhamento (compasso de 8 colcheias)
+      const root = CHORDS[bar % CHORDS.length];
+      if(eighth % 4 === 0){ osc('triangle', mtof(root-12), mtof(root-12), t, spb*1.8, .7, musicBus, .01); hiss(t, .12, .35, 'lowpass', 180, 60, 1, musicBus); }
+      if(eighth % 4 === 2){ [0, root===50?3:4, 7].forEach(iv=>accordion(mtof(root+12+iv), t, spb*.9, .12)); }
+      hiss(t, .04, eighth%2 ? .08 : .14, 'highpass', 7000, 6000, 1, musicBus);
+      eighth++; if(eighth === 8){ eighth = 0; bar++; }
+      nextNote += spb;
+    }
+  }
+  function startMusic(){
+    if(!ctx || musicOn || !st.music) return;
+    musicOn = true; nextNote = ctx.currentTime + .1; melIdx = 0; melLeft = 0; bar = 0; eighth = 0;
+    timer = setInterval(tick, 60); tick();
+  }
+  function stopMusic(){ musicOn = false; clearInterval(timer); }
+
+  // o navegador só deixa tocar som depois de um toque na tela
+  const unlock = ()=>{ if(init()) startMusic(); };
+  addEventListener('pointerdown', unlock, {capture:true});
+  addEventListener('keydown', unlock, {capture:true});
+  document.addEventListener('visibilitychange', ()=>{ if(!ctx) return; if(document.hidden) ctx.suspend(); else ctx.resume(); });
+
+  function setMusic(on){
+    st.music = on; save('bnp-music', on ? '1' : '0');
+    if(!ctx) return;
+    musicBus.gain.setTargetAtTime(on ? .16 : 0, ctx.currentTime, .1);
+    if(on) startMusic(); else stopMusic();
+  }
+  function setSfx(on){ st.sfx = on; save('bnp-sfx', on ? '1' : '0'); if(ctx) sfxBus.gain.setTargetAtTime(on ? .75 : 0, ctx.currentTime, .05); }
+  function duck(sec){ if(!ctx || !st.music) return; const g = musicBus.gain, t = ctx.currentTime; g.cancelScheduledValues(t); g.setTargetAtTime(.03, t, .05); g.setTargetAtTime(.16, t+sec, .4); }
+  return Object.assign(fx, {state:st, setMusic, setSfx, duck, setMood(m){ mood = m; }});
+})();
+</script>
+<script>
 (function(){
 let RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const T = ms => RM ? Math.max(1, ms*0.15) : ms;
@@ -220,6 +370,7 @@ function cannonball(B, r, c){
   img.src = `${A}marcadores/bala-canhao.svg`;
   img.style.left = x+'px'; img.style.top = y+'px'; img.style.width = img.style.height = (cs*.6)+'px';
   B.fx.appendChild(img);
+  SND.cannon();
   // The projectile follows a fixed ballistic arc; aiming cells never move.
   const frames = RM ? [{opacity:0},{opacity:1},{opacity:0}] : [
     {transform:tr(sx,sy,.9),opacity:0},
@@ -243,6 +394,7 @@ function impactWord(B,x,y,cs,text){
 }
 function explosion(B, r, c, big){
   const {x,y,cs} = cellCenter(B,r,c), k = big ? 1.25 : 1;
+  SND.boom(big);
   if(!big) impactWord(B,x,y-cs*.4,cs,'BUM!');
   particle(B,'flash',x,y,cs*.8*k,[{transform:tr(0,0,.95),opacity:.9},{transform:tr(0,0,1.6),opacity:0}],160);
   particle(B,'blast',x,y-cs*.15,cs*2.2*k,[{transform:tr(0,0,.95),opacity:1},{transform:tr(0,-cs*.2,1.35),opacity:0}],400);
@@ -265,7 +417,7 @@ function explosion(B, r, c, big){
 }
 function splash(B,r,c,shot=false){
   const {x,y,cs}=cellCenter(B,r,c);
-  if(shot) impactWord(B,x,y-cs*.3,cs,'SPLASH!');
+  if(shot){ impactWord(B,x,y-cs*.3,cs,'SPLASH!'); SND.splash(); }
   for(let i=0;i<(RM?1:2);i++) particle(B,'ring',x,y,cs*.9,[
     {transform:tr(0,0,.95),opacity:.9},
     {transform:tr(0,cs*.1,1.7+i*.5),opacity:0}
@@ -295,6 +447,7 @@ async function sinkShip(B,ship){
   await sinker.animate([{opacity:0},{opacity:1}],{duration:T(220),easing:EASE_OUT}).finished;
   for(const [r,c] of cells){explosion(B,r,c,true);await wait(120);}
   const middle=cells[Math.floor(cells.length/2)], {x,y,cs}=cellCenter(B,...middle);
+  SND.sink();
   if(!RM){
     for(let i=0;i<3;i++)particle(B,'ring',x,y,cs*ship.len*.6,[
       {transform:tr(0,0,.95),opacity:.7},{transform:tr(0,0,1.45),opacity:0}
@@ -434,12 +587,13 @@ function placeClick(r, c){
     const added = PB.ships.querySelector(`.ship[data-idx="${idx}"]`);
     if(added) added.firstChild.animate(RM?[{opacity:.4},{opacity:1}]:[{transform:'translateY(-12%)',opacity:.4},{transform:'translateY(0)',opacity:1}],{duration:T(250),easing:EASE_OUT});
     cellsOf(p.ships[idx]).forEach(([rr,cc])=>splash(PB, rr, cc));
+    SND.thunk();
   }
 }
 function rotate(){ PL.horiz = !PL.horiz; drawPreview(); }
 document.addEventListener('keydown', e=>{ if((e.key==='r'||e.key==='R') && !$('place').hidden && e.target.tagName!=='INPUT') rotate(); });
 $('rotate').onclick = rotate;
-$('random').onclick = ()=>{ randomFleet(P[PL.i]); PL.sel=null; drawPlace(); P[PL.i].ships.forEach(s=>cellsOf(s).forEach(([r,c])=>splash(PB,r,c))); };
+$('random').onclick = ()=>{ randomFleet(P[PL.i]); PL.sel=null; drawPlace(); P[PL.i].ships.forEach(s=>cellsOf(s).forEach(([r,c])=>splash(PB,r,c))); SND.thunk(); setTimeout(SND.thunk, 120); };
 $('clear').onclick = ()=>{ const p=P[PL.i]; FLEET.forEach((_,k)=>removeShip(p,k)); PL.sel=0; drawPlace(); };
 $('ready').onclick = ()=>{
   if(online){ NET.send({t:'ready'}); ON.meReady = true; maybeStartOnline(); return; }
@@ -476,7 +630,7 @@ function drawPreview(){
 let TB = null, OB = null;
 const viewer = ()=> online ? 0 : cur;
 const myTurn = ()=> online ? ON.myTurn : true;
-function startBattle(){ show('battle'); renderBattle(); say(online ? (myTurn()?'Você dispara primeiro! Escolha o alvo.':`${P[1].name} dispara primeiro. Segura firme!`) : `${captain(P[cur].name)}, escolha onde disparar!`); }
+function startBattle(){ SND.setMood('tense'); show('battle'); renderBattle(); say(online ? (myTurn()?'Você dispara primeiro! Escolha o alvo.':`${P[1].name} dispara primeiro. Segura firme!`) : `${captain(P[cur].name)}, escolha onde disparar!`); }
 function renderBattle(){
   const vi = viewer(), me = P[vi], foe = P[1-vi];
   $('targetLabel').textContent = `Mares de ${foe.name}`;
@@ -520,6 +674,7 @@ async function showHit(B, cells, res){
   if(res.sunk){
     await wait(250);
     await sinkShip(B, res.sunk);
+    SND.squawk();
     cellsOf(res.sunk).forEach(([rr,cc])=>cells[rr][cc].classList.add('sunk'));
   }
 }
@@ -575,6 +730,7 @@ function victory(i){
   $('score').innerHTML = '<tr><th>Capitão</th><th>Tiros</th><th>Acertos</th><th>Pontaria</th></tr>' +
     P.map((p,k)=>{ const s = statsOf(k); return `<tr><td>${p.name}</td><td>${s.shots}</td><td>${s.hits}</td><td>${s.acc}%</td></tr>`; }).join('');
   $('win').hidden = false;
+  SND.duck(4); SND.fanfare(lost);
   $('parrot').src = `${A}aventura/papagaio.webp`;
   if(!RM && !lost) for(let i=0;i<40;i++){
     const coin = document.createElement('img'); coin.className='coin'; coin.src = `${A}tesouro/moeda.svg`; coin.alt='';
@@ -585,7 +741,7 @@ function victory(i){
   }
   busy = false;
 }
-$('again').onclick = ()=>{ $('win').hidden = true; if(online) NET.close(); show('menu'); };
+$('again').onclick = ()=>{ SND.setMood('calm'); $('win').hidden = true; if(online) NET.close(); show('menu'); };
 
 /* ---------- dois aparelhos ---------- */
 // Conexão direta entre os aparelhos (WebRTC via PeerJS). Com #teste no endereço,
@@ -688,6 +844,14 @@ function lostConn(){
   overlay('O rival sumiu no nevoeiro!', 'A conexão com o outro aparelho caiu. Voltem ao início e criem uma sala nova.', 'Voltar ao início', ()=>{ resetOnline(); show('menu'); });
 }
 addEventListener('pagehide', ()=>NET.close());
+
+/* ---------- botões de som ---------- */
+function drawSound(){ $('musicBtn').setAttribute('aria-pressed', SND.state.music); $('sfxBtn').setAttribute('aria-pressed', SND.state.sfx); }
+$('musicBtn').onclick = ()=>{ SND.setMusic(!SND.state.music); drawSound(); };
+$('sfxBtn').onclick = ()=>{ SND.setSfx(!SND.state.sfx); drawSound(); SND.click(); };
+drawSound();
+// som de clique nos botões principais
+document.addEventListener('click', e=>{ if(e.target.closest('.btn,.mode,.dock button')) SND.click(); });
 })();
 </script>
 </body>
