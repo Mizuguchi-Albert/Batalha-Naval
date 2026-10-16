@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Batalha dos Piratas</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Alegreya+Sans:wght@400;700;800&display=swap">
+<style>
+/* Layout: mesa de capitão — mapa do mar no centro, pergaminhos de comando ao redor. Visual único (noite no mar). */
+:root{
+  --sea-deep:#071f27; --sea:#0f3d48; --sea-hi:#1b5c66; --foam:#cfe8e2;
+  --parch:#efdfb6; --parch-dk:#d9c38c; --ink:#2b1a0d; --gold:#f0b444; --fire:#e2552f; --ok:#5fc48a;
+  --display:"Pirata One","Luminari","Papyrus",Georgia,serif;
+  --body:"Alegreya Sans","Trebuchet MS",system-ui,sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(ellipse at 50% -10%,#16525c 0%,var(--sea-deep) 60%) fixed,var(--sea-deep);color:var(--foam);font-family:var(--body);font-size:16px;overflow-x:hidden}
+.wrap{max-width:1100px;margin:0 auto;padding-block:16px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance;letter-spacing:.5px}
+h1{font-size:clamp(40px,8vw,72px);color:var(--gold);line-height:1;text-shadow:0 3px 0 #3a2208,0 0 24px rgba(240,180,68,.25)}
+h2{font-size:clamp(26px,4.5vw,36px);color:var(--gold);line-height:1.1}
+button{font-family:var(--body);cursor:pointer}
+.btn{border:2px solid var(--ink);background:var(--gold);color:var(--ink);font-weight:800;font-size:17px;padding:10px 18px;border-radius:10px;box-shadow:0 4px 0 #6b4310;transition:transform .08s,box-shadow .08s}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #6b4310}
+.btn.ghost{background:transparent;color:var(--parch);border-color:var(--parch-dk);box-shadow:none}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn:focus-visible,.cell:focus-visible,input:focus-visible,.dock button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.parch{background:var(--parch);color:var(--ink);border-radius:6px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 0 40px rgba(120,80,20,.25);position:relative}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.muted{opacity:.75}
+
+/* MENU */
+#menu{align-items:center;text-align:center;gap:20px}
+.menu-card{max-width:520px;width:100%;display:flex;flex-direction:column;gap:14px;text-align:left}
+.menu-card label{font-weight:700;display:flex;flex-direction:column;gap:4px}
+.menu-card input[type=text]{font:inherit;font-size:18px;padding:8px 10px;border:2px solid var(--ink);border-radius:6px;background:#fff8e4;color:var(--ink)}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mode{border:2px solid var(--ink);border-radius:8px;padding:10px;background:#fff8e4;display:flex;flex-direction:column;gap:2px;font-weight:700}
+.mode small{font-weight:400}
+.mode.on{background:var(--ink);color:var(--parch)}
+.mode.soon{opacity:.5}
+.check{flex-direction:row!important;align-items:center;gap:8px!important;font-weight:400!important}
+.check input{width:20px;height:20px;accent-color:var(--ink)}
+.hero-ship{width:min(320px,80vw);animation:bob 3s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-6px) rotate(-2deg)}}
+
+/* BOARD */
+.bf{display:grid;grid-template-columns:auto auto;grid-template-rows:auto auto;gap:4px;justify-content:center}
+.bf .cols{grid-column:2;display:grid;grid-template-columns:repeat(10,1fr);text-align:center}
+.bf .rows{grid-row:2;display:grid;grid-template-rows:repeat(10,1fr);align-items:center;padding-right:2px}
+.bf .cols span,.bf .rows span{font-family:var(--display);color:var(--parch-dk);font-size:clamp(12px,2.6vw,17px);line-height:1}
+.board{--bs:min(460px,calc(100vw - 64px));position:relative;width:var(--bs);aspect-ratio:1;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(10,1fr);border:3px solid #3c2a14;border-radius:6px;overflow:visible;
+  background:repeating-linear-gradient(115deg,rgba(255,255,255,.03) 0 6px,transparent 6px 14px),linear-gradient(160deg,var(--sea-hi),var(--sea) 55%,#0a2f38);box-shadow:0 0 0 3px var(--parch-dk),0 14px 40px rgba(0,0,0,.5)}
+.board.small{--bs:min(280px,calc(100vw - 64px))}
+.board::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 30% 20%,rgba(207,232,226,.10),transparent 40%),radial-gradient(circle at 75% 70%,rgba(207,232,226,.08),transparent 35%);background-size:200% 200%;animation:shimmer 9s ease-in-out infinite alternate;pointer-events:none;border-radius:3px}
+@keyframes shimmer{to{background-position:100% 100%}}
+.ships,.fx{position:absolute;inset:0;pointer-events:none}
+.ships{z-index:0}
+.fx{z-index:3;overflow:visible}
+.cell{position:relative;z-index:1;background:transparent;border:0;border-right:1px solid rgba(207,232,226,.13);border-bottom:1px solid rgba(207,232,226,.13);padding:0;margin:0;min-width:0}
+.target .cell:not(.shot):hover{background:rgba(240,180,68,.25);box-shadow:inset 0 0 0 2px var(--gold);cursor:crosshair}
+.target.locked .cell{cursor:wait}
+.cell.prev-ok{background:rgba(95,196,138,.45)}
+.cell.prev-bad{background:rgba(226,85,47,.5)}
+.cell.miss::after{content:"";position:absolute;left:50%;top:50%;width:26%;height:26%;transform:translate(-50%,-50%);border-radius:50%;background:var(--foam);box-shadow:0 0 0 3px rgba(207,232,226,.25)}
+.cell.hit::after{content:"";position:absolute;left:50%;top:55%;width:52%;height:62%;transform:translate(-50%,-50%);border-radius:50% 50% 45% 45%/60% 60% 40% 40%;
+  background:radial-gradient(ellipse at 50% 75%,#fff3a8 0 18%,#ffb43a 35%,var(--fire) 60%,transparent 72%);filter:drop-shadow(0 0 6px rgba(255,140,40,.8));animation:flame .5s ease-in-out infinite alternate;transform-origin:50% 90%}
+@keyframes flame{from{transform:translate(-50%,-50%) scale(.9,1) rotate(-4deg)}to{transform:translate(-50%,-52%) scale(1.05,1.15) rotate(4deg)}}
+.cell.sunk{background:rgba(0,0,0,.35)}
+.cell.sunk::after{content:"✕";background:none;font-weight:800;color:rgba(226,85,47,.9);font-size:calc(var(--bs)/16);width:auto;height:auto;top:50%;filter:none;animation:none;box-shadow:none;transform:translate(-50%,-50%);line-height:1}
+
+.ship{position:absolute;left:calc(var(--c)*10%);top:calc(var(--r)*10%);width:calc(var(--w)*10%);height:calc(var(--h)*10%)}
+.ship .sinker{position:absolute;inset:0}
+.ship svg{position:absolute;left:50%;top:50%;width:100%;height:100%;transform:translate(-50%,-50%);filter:drop-shadow(0 3px 2px rgba(0,0,0,.45))}
+.ship.v svg{width:calc(var(--len)*100%);height:calc(100%/var(--len));transform:translate(-50%,-50%) rotate(90deg)}
+.ship.wreck{overflow:hidden}
+.ship.wreck .sinker{transform:translateY(calc(42% / var(--h))) rotate(-3deg) scale(.94);opacity:.45;filter:saturate(.15) brightness(.7) sepia(.4)}
+.ship.sinking{overflow:hidden}
+
+.p{position:absolute;left:0;top:0;transform:translate(-50%,-50%);border-radius:50%;will-change:transform,opacity}
+.ball{background:radial-gradient(circle at 35% 30%,#888 0,#222 55%,#000);box-shadow:0 0 6px rgba(0,0,0,.6)}
+.flash{background:radial-gradient(circle,#fffbe0 0,#ffd23f 25%,#ff7a1a 50%,rgba(226,85,47,0) 70%)}
+.spark{border-radius:2px;background:#ffb43a}
+.debris{border-radius:2px;background:#6b3f1f}
+.smoke{background:radial-gradient(circle,rgba(70,70,70,.85),rgba(70,70,70,0) 70%)}
+.ring{border:2px solid var(--foam);background:transparent}
+.drop{background:var(--foam)}
+.bubble{border:1.5px solid rgba(207,232,226,.9);background:rgba(207,232,226,.15)}
+
+/* PLACEMENT */
+.layout{display:grid;grid-template-columns:auto minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:820px){.layout{grid-template-columns:minmax(0,1fr)}}
+.dock{display:flex;flex-direction:column;gap:8px}
+.dock button{display:grid;grid-template-columns:110px 1fr auto;gap:10px;align-items:center;border:2px solid var(--ink);border-radius:8px;background:#fff8e4;color:var(--ink);padding:6px 10px;text-align:left;font-size:16px;font-weight:700}
+.dock button svg{width:100%;height:auto;max-height:28px}
+.dock button.sel{background:var(--ink);color:var(--parch);box-shadow:0 0 0 3px var(--gold)}
+.dock button.done{opacity:.55}
+.dock .len{font-weight:400;font-variant-numeric:tabular-nums}
+.tip{font-size:14px;line-height:1.4}
+kbd{font-family:var(--body);background:var(--ink);color:var(--parch);border-radius:4px;padding:0 5px;font-size:13px}
+
+/* BATTLE */
+.topbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.parrot{display:flex;align-items:flex-end;gap:8px;min-width:0;flex:1 1 320px}
+.parrot svg{width:58px;height:58px;flex:none;transform-origin:50% 100%}
+.parrot svg.talk{animation:squawk .45s ease}
+@keyframes squawk{30%{transform:rotate(-8deg) scale(1.08)}60%{transform:rotate(6deg)}}
+.bubble-msg{background:var(--parch);color:var(--ink);padding:10px 14px;border-radius:14px 14px 14px 2px;font-weight:700;font-size:17px;line-height:1.3;min-width:0;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.bubble-msg.pop{animation:pop .3s ease}
+@keyframes pop{from{transform:scale(.85);opacity:.4}}
+.turn{font-family:var(--display);font-size:clamp(22px,4vw,30px);color:var(--gold)}
+.arena{display:grid;grid-template-columns:auto minmax(0,1fr);gap:26px;align-items:start}
+@media (max-width:860px){.arena{grid-template-columns:minmax(0,1fr)}}
+.side{display:flex;flex-direction:column;gap:16px;align-items:center}
+.label{font-family:var(--display);font-size:22px;color:var(--parch);text-align:center;margin-bottom:6px}
+.fleet{display:flex;flex-direction:column;gap:6px;width:100%;max-width:300px}
+.fleet div{display:grid;grid-template-columns:90px 1fr;align-items:center;gap:8px;font-weight:700;font-size:15px}
+.fleet svg{width:100%;height:auto;max-height:22px}
+.fleet .gone{opacity:.4;text-decoration:line-through}
+.fleet .gone svg{filter:grayscale(1)}
+.stats{font-variant-numeric:tabular-nums;font-size:15px}
+
+/* OVERLAYS */
+.overlay{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:radial-gradient(circle at 50% 40%,#123f49,#03141a 75%)}
+.overlay .parch{max-width:460px;width:100%;text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center}
+.overlay h2{color:var(--ink)}
+.chest{width:min(220px,60vw)}
+.chest .lid{transform-origin:50% 62%;animation:lid 1.2s .3s ease-out both}
+@keyframes lid{from{transform:rotate(0)}to{transform:translateY(-4px) rotate(-14deg)}}
+.glow{animation:glow 1.6s ease-in-out infinite alternate}
+@keyframes glow{to{opacity:.55}}
+.coin{position:fixed;top:-30px;width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff2b0,var(--gold) 50%,#a86b12);border:1px solid #7a4e0c;z-index:60;pointer-events:none}
+table.score{border-collapse:collapse;font-variant-numeric:tabular-nums;width:100%}
+table.score th,table.score td{padding:4px 6px;border-bottom:1px solid rgba(43,26,13,.25);text-align:right}
+table.score th:first-child,table.score td:first-child{text-align:left}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap" id="menu">
+  <svg class="hero-ship" id="heroShip" viewBox="0 0 500 100" aria-hidden="true"></svg>
+  <h1>Batalha dos Piratas</h1>
+  <p class="muted" style="margin:0;max-width:520px">Esconda sua frota, dispare os canhões e mande os navios do rival para o fundo do mar.</p>
+  <div class="parch menu-card">
+    <label for="n1">Capitão 1<input id="n1" type="text" maxlength="18" value="Barba Ruiva"></label>
+    <label for="n2">Capitão 2<input id="n2" type="text" maxlength="18" value="Olho de Falcão"></label>
+    <div class="modes">
+      <div class="mode on">Mesmo aparelho<small>Passem o aparelho a cada turno</small></div>
+      <div class="mode soon">Dois aparelhos<small>Chegando no próximo passo</small></div>
+    </div>
+    <label class="check" for="bonus"><input id="bonus" type="checkbox" checked> Acertou? Atira de novo!</label>
+    <button class="btn" id="start">Zarpar!</button>
+  </div>
+</div>
+
+<div class="wrap" id="place" hidden>
+  <h2 id="placeTitle"></h2>
+  <div class="layout">
+    <div id="placeBoard"></div>
+    <div class="parch" style="display:flex;flex-direction:column;gap:12px">
+      <div class="dock" id="dock"></div>
+      <div class="row">
+        <button class="btn ghost" style="color:var(--ink);border-color:var(--ink)" id="rotate">Girar navio</button>
+        <button class="btn ghost" style="color:var(--ink);border-color:var(--ink)" id="random">Espalhar ao acaso</button>
+        <button class="btn ghost" style="color:var(--ink);border-color:var(--ink)" id="clear">Limpar</button>
+      </div>
+      <p class="tip" style="margin:0">Escolha um navio e toque no mar para posicionar. Toque num navio já colocado para mudá-lo de lugar. Gire com o botão, a tecla <kbd>R</kbd> ou o botão direito do mouse.</p>
+      <button class="btn" id="ready" disabled>Frota pronta!</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" id="battle" hidden>
+  <div class="topbar">
+    <div class="turn" id="turn"></div>
+    <div class="parrot">
+      <svg id="parrot" viewBox="0 0 60 60" aria-hidden="true">
+        <path d="M30 56 C18 50 16 34 22 24 C26 16 38 14 42 22 C46 30 44 46 30 56Z" fill="#2fa84f" stroke="#123" stroke-width="1.5"/>
+        <path d="M24 36 C20 44 22 52 30 56 C26 48 26 42 24 36Z" fill="#e2552f"/>
+        <path d="M34 34 C40 40 40 48 34 54" fill="none" stroke="#1f7a39" stroke-width="2"/>
+        <circle cx="32" cy="22" r="10" fill="#38c060" stroke="#123" stroke-width="1.5"/>
+        <path d="M40 20 C48 20 48 30 41 30 C43 27 42 24 39 24Z" fill="#f0b444" stroke="#123" stroke-width="1.2"/>
+        <circle cx="34" cy="20" r="3.4" fill="#fff"/><circle cx="35" cy="20" r="1.8" fill="#000"/>
+        <path d="M25 13 L22 6 L28 11 L29 4 L32 12" fill="#e2552f" stroke="#123" stroke-width="1"/>
+      </svg>
+      <div class="bubble-msg" id="say">Às armas!</div>
+    </div>
+  </div>
+  <div class="arena">
+    <div>
+      <div class="label" id="targetLabel"></div>
+      <div id="targetBoard"></div>
+    </div>
+    <div class="side">
+      <div>
+        <div class="label">Sua frota</div>
+        <div id="ownBoard"></div>
+      </div>
+      <div class="parch" style="width:100%;max-width:330px;display:flex;flex-direction:column;gap:8px">
+        <h3 style="font-size:22px" id="enemyFleetTitle">Frota inimiga</h3>
+        <div class="fleet" id="enemyFleet"></div>
+        <div class="stats" id="stats"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="pass" hidden>
+  <div class="parch">
+    <svg viewBox="0 0 120 80" width="120" aria-hidden="true">
+      <path d="M10 70 H110" stroke="#2b1a0d" stroke-width="3"/>
+      <circle cx="60" cy="34" r="24" fill="#2b1a0d"/><path d="M48 30 a5 5 0 1 0 0.1 0Z M72 30 a5 5 0 1 0 0.1 0Z" fill="#efdfb6"/>
+      <path d="M50 46 h20" stroke="#efdfb6" stroke-width="3" stroke-dasharray="3 2"/>
+      <path d="M30 60 L90 12 M30 12 L90 60" stroke="#2b1a0d" stroke-width="6" stroke-linecap="round"/>
+    </svg>
+    <h2 id="passTitle"></h2>
+    <p id="passText" style="margin:0"></p>
+    <button class="btn" id="passGo"></button>
+  </div>
+</div>
+
+<div class="overlay" id="win" hidden>
+  <div class="parch">
+    <svg class="chest" viewBox="0 0 200 150" aria-hidden="true">
+      <ellipse class="glow" cx="100" cy="70" rx="70" ry="30" fill="#ffe27a" opacity=".9"/>
+      <rect x="30" y="80" width="140" height="60" rx="6" fill="#7a4520" stroke="#2b1a0d" stroke-width="4"/>
+      <rect x="30" y="100" width="140" height="10" fill="#f0b444" stroke="#2b1a0d" stroke-width="2"/>
+      <rect x="90" y="96" width="20" height="22" rx="3" fill="#f0b444" stroke="#2b1a0d" stroke-width="2"/>
+      <circle cx="70" cy="78" r="9" fill="#f0b444" stroke="#7a4e0c" stroke-width="2"/><circle cx="100" cy="74" r="9" fill="#f0b444" stroke="#7a4e0c" stroke-width="2"/><circle cx="128" cy="79" r="9" fill="#f0b444" stroke="#7a4e0c" stroke-width="2"/>
+      <g class="lid"><path d="M30 82 V62 Q100 22 170 62 V82 Z" fill="#8b5226" stroke="#2b1a0d" stroke-width="4"/><path d="M90 40 V82 M110 40 V82" stroke="#f0b444" stroke-width="6"/></g>
+    </svg>
+    <h2 id="winTitle"></h2>
+    <table class="score" id="score"></table>
+    <button class="btn" id="again">Nova batalha</button>
+  </div>
+</div>
+
+<script>
+(function(){
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const T = ms => RM ? Math.max(1, ms*0.15) : ms;
+const wait = ms => new Promise(r=>setTimeout(r, T(ms)));
+const $ = id => document.getElementById(id);
+const FLEET = [
+  {name:'Galeão', len:5}, {name:'Fragata', len:4}, {name:'Bergantim', len:3},
+  {name:'Escuna', len:3}, {name:'Chalupa', len:2}
+];
+const ROWS = 'ABCDEFGHIJ';
+const SAY = {
+  miss:['Só acertou peixe!','Splash! Os tubarões agradecem.','Água! Ajusta essa mira, marujo!','Errou! O mar engoliu a bala.','Nem um arranhão. Tente de novo!'],
+  hit:['Fogo a bordo!','Bem no casco! Arrr!','Acertou em cheio!','Madeira voando pra todo lado!','Bum! Esse doeu!'],
+  sunk:['Afundou o {s}! Pro fundo do mar!','Adeus, {s}! Vai dormir com os peixes!','O {s} foi a pique! Arrr!'],
+  again:' Atira de novo!'
+};
+const pick = a => a[Math.floor(Math.random()*a.length)];
+
+/* ---------- arte dos navios ---------- */
+function shipSVG(len, color){
+  const W = len*100;
+  const masts = len>=5?3:len>=3?2:1;
+  let s = `<svg viewBox="0 0 ${W} 100" preserveAspectRatio="none" aria-hidden="true">`;
+  for(let i=0;i<masts;i++){
+    const x = W*(i+1)/(masts+1);
+    const h = i===Math.floor(masts/2) ? 6 : 14;
+    s += `<path d="M${x} 60 V${h}" stroke="#2b1a0d" stroke-width="5"/>`;
+    s += `<path d="M${x-26} ${h+6} Q${x} ${h+12} ${x+26} ${h+6} L${x+30} 50 Q${x} 58 ${x-30} 50Z" fill="#f4e7c4" stroke="#2b1a0d" stroke-width="3"/>`;
+    if(i===0) s += `<path d="M${x} ${h} h22 l-5 7 l5 7 h-22Z" fill="#111"/><circle cx="${x+9}" cy="${h+7}" r="3" fill="#fff"/>`;
+  }
+  s += `<path d="M6 56 H${W-34} L${W-4} 48 L${W-24} 84 Q${W/2} 94 22 84Z" fill="${color||'#7a4520'}" stroke="#2b1a0d" stroke-width="4"/>`;
+  s += `<path d="M16 68 H${W-30}" stroke="#2b1a0d" stroke-width="2.5" opacity=".6"/>`;
+  for(let x=40;x<W-40;x+=50) s += `<circle cx="${x}" cy="76" r="5" fill="#2b1a0d"/>`;
+  return s + '</svg>';
+}
+$('heroShip').outerHTML = shipSVG(5).replace('<svg','<svg class="hero-ship" id="heroShip"');
+
+/* ---------- tabuleiro ---------- */
+function makeBoard(host, cls){
+  host.innerHTML = '';
+  const bf = document.createElement('div'); bf.className = 'bf';
+  const corner = document.createElement('div');
+  const cols = document.createElement('div'); cols.className = 'cols';
+  for(let c=1;c<=10;c++){ const s=document.createElement('span'); s.textContent=c; cols.appendChild(s); }
+  const rows = document.createElement('div'); rows.className = 'rows';
+  for(let r=0;r<10;r++){ const s=document.createElement('span'); s.textContent=ROWS[r]; rows.appendChild(s); }
+  const board = document.createElement('div'); board.className = 'board ' + (cls||'');
+  const ships = document.createElement('div'); ships.className = 'ships';
+  const fx = document.createElement('div'); fx.className = 'fx';
+  board.appendChild(ships);
+  const cells = [];
+  for(let r=0;r<10;r++){ cells.push([]); for(let c=0;c<10;c++){
+    const b = document.createElement('button'); b.className='cell'; b.dataset.r=r; b.dataset.c=c;
+    b.setAttribute('aria-label', ROWS[r]+(c+1));
+    board.appendChild(b); cells[r].push(b);
+  }}
+  board.appendChild(fx);
+  bf.append(corner, cols, rows, board);
+  host.appendChild(bf);
+  return {board, ships, fx, cells};
+}
+function shipEl(B, ship){
+  const d = document.createElement('div');
+  const h = ship.horiz;
+  d.className = 'ship ' + (h?'h':'v');
+  d.style.setProperty('--r', ship.r); d.style.setProperty('--c', ship.c);
+  d.style.setProperty('--w', h?ship.len:1); d.style.setProperty('--h', h?1:ship.len);
+  d.style.setProperty('--len', ship.len);
+  d.innerHTML = '<div class="sinker">' + shipSVG(ship.len) + '</div>';
+  B.ships.appendChild(d);
+  return d;
+}
+const cellsOf = s => Array.from({length:s.len},(_,i)=> s.horiz?[s.r,s.c+i]:[s.r+i,s.c]);
+function cellCenter(B, r, c){
+  const w = B.board.clientWidth, cs = w/10;
+  return {x:(c+.5)*cs, y:(r+.5)*cs, cs};
+}
+
+/* ---------- efeitos ---------- */
+function particle(B, cls, x, y, size, frames, dur, delay=0, easing='ease-out'){
+  const p = document.createElement('div'); p.className = 'p ' + cls;
+  p.style.width = p.style.height = size + 'px';
+  p.style.left = x + 'px'; p.style.top = y + 'px';
+  B.fx.appendChild(p);
+  const a = p.animate(frames, {duration:T(dur), delay:T(delay), easing, fill:'both'});
+  a.finished.then(()=>p.remove()).catch(()=>p.remove());
+  return a;
+}
+const tr = (dx,dy,s=1,rot=0) => `translate(-50%,-50%) translate(${dx}px,${dy}px) scale(${s}) rotate(${rot}deg)`;
+function cannonball(B, r, c){
+  const {x,y,cs} = cellCenter(B, r, c);
+  const w = B.board.clientWidth;
+  const sx = w/2 - x, sy = w + cs*1.5 - y;
+  const pk = Math.min(sy, 0) - cs*2.5;
+  return particle(B, 'ball', x, y, cs*.38, [
+    {transform:tr(sx, sy, .6)},
+    {transform:tr(sx*.5, (sy*.5)+pk, 1.5), offset:.5},
+    {transform:tr(0,0,.9)}
+  ], 520, 0, 'linear').finished;
+}
+function explosion(B, r, c, big){
+  const {x,y,cs} = cellCenter(B, r, c);
+  const k = big ? 1.5 : 1;
+  particle(B, 'flash', x, y, cs*1.4*k, [{transform:tr(0,0,.2),opacity:1},{transform:tr(0,0,1.6),opacity:0}], 550);
+  for(let i=0;i<10;i++){
+    const ang = Math.random()*Math.PI*2, dist = cs*(.7+Math.random()*.9)*k;
+    particle(B, i%2?'spark':'debris', x, y, cs*(.08+Math.random()*.1), [
+      {transform:tr(0,0,1,0),opacity:1},
+      {transform:tr(Math.cos(ang)*dist, Math.sin(ang)*dist + cs*.4, .6, 360*Math.random()),opacity:0}
+    ], 650+Math.random()*250, 0, 'cubic-bezier(.2,.7,.4,1)');
+  }
+  for(let i=0;i<3;i++){
+    particle(B, 'smoke', x+(Math.random()-.5)*cs*.5, y, cs*.9*k, [
+      {transform:tr(0,0,.4),opacity:.9},{transform:tr((Math.random()-.5)*cs*.6,-cs*1.4,1.5),opacity:0}
+    ], 1100, 120+i*90);
+  }
+}
+function splash(B, r, c){
+  const {x,y,cs} = cellCenter(B, r, c);
+  for(let i=0;i<2;i++) particle(B, 'ring', x, y, cs*.9, [{transform:tr(0,0,.2),opacity:1},{transform:tr(0,0,1.5),opacity:0}], 700, i*160);
+  for(let i=0;i<7;i++){
+    const dx = (Math.random()-.5)*cs*1.2, up = cs*(.6+Math.random()*.6);
+    particle(B, 'drop', x, y, cs*(.08+Math.random()*.06), [
+      {transform:tr(0,0),opacity:1},{transform:tr(dx*.6,-up),opacity:1,offset:.45},{transform:tr(dx,cs*.2),opacity:0}
+    ], 650, 0, 'ease-out');
+  }
+}
+function bubbles(B, r, c, n){
+  const {x,y,cs} = cellCenter(B, r, c);
+  for(let i=0;i<n;i++){
+    particle(B, 'bubble', x+(Math.random()-.5)*cs*.8, y+cs*.2, cs*(.1+Math.random()*.15), [
+      {transform:tr(0,0),opacity:0},{transform:tr((Math.random()-.5)*8,-cs*.4),opacity:1,offset:.3},{transform:tr((Math.random()-.5)*14,-cs*1.2),opacity:0}
+    ], 1000+Math.random()*500, i*110);
+  }
+}
+async function sinkShip(B, ship){
+  const el = shipEl(B, ship);
+  const sinker = el.firstChild;
+  const cells = cellsOf(ship);
+  // 1. o navio aparece
+  await sinker.animate([{opacity:0,transform:'scale(1.15)'},{opacity:1,transform:'scale(1)'}],{duration:T(380),easing:'ease-out'}).finished;
+  // 2. explode de ponta a ponta
+  const shake = sinker.animate([{transform:'translateX(0)'},{transform:'translateX(-3px) rotate(-1deg)'},{transform:'translateX(3px) rotate(1deg)'},{transform:'translateX(0)'}],{duration:T(140),iterations:RM?1:6});
+  for(const [r,c] of cells){ explosion(B, r, c, true); await wait(140); }
+  await shake.finished.catch(()=>{});
+  // 3. afunda no mar
+  el.classList.add('sinking');
+  const mid = cells[Math.floor(cells.length/2)];
+  const {x,y,cs} = cellCenter(B, mid[0], mid[1]);
+  for(let i=0;i<3;i++) particle(B, 'ring', x, y, cs*ship.len*.7, [{transform:tr(0,0,.3),opacity:.9},{transform:tr(0,0,1.3),opacity:0}], 1300, i*350);
+  cells.forEach(([r,c])=>bubbles(B, r, c, 4));
+  const dy = (42/(ship.horiz?1:ship.len)).toFixed(2);
+  await sinker.animate([
+    {transform:'none',opacity:1,filter:'none'},
+    {transform:`translateY(${dy*.15}%) rotate(-5deg)`,opacity:1,offset:.25},
+    {transform:`translateY(${dy*.55}%) rotate(4deg)`,opacity:.8,offset:.6},
+    {transform:`translateY(${dy}%) rotate(-3deg) scale(.94)`,opacity:.45,filter:'saturate(.15) brightness(.7) sepia(.4)'}
+  ],{duration:T(1700),easing:'ease-in'}).finished;
+  el.classList.remove('sinking'); el.classList.add('wreck');
+  return el;
+}
+
+/* ---------- estado ---------- */
+let P = [], cur = 0, busy = false, bonus = true;
+function newPlayer(name){
+  return {name, ships:[], occ:Array.from({length:10},()=>Array(10).fill(-1)), shots:Array.from({length:10},()=>Array(10).fill(0)), stats:{shots:0,hits:0}};
+}
+function canPlace(p, len, r, c, horiz, ignore){
+  for(let i=0;i<len;i++){
+    const rr = horiz?r:r+i, cc = horiz?c+i:c;
+    if(rr>9||cc>9) return false;
+    const o = p.occ[rr][cc];
+    if(o!==-1 && o!==ignore) return false;
+  }
+  return true;
+}
+function placeShip(p, idx, r, c, horiz){
+  removeShip(p, idx);
+  const s = {idx, name:FLEET[idx].name, len:FLEET[idx].len, r, c, horiz, hits:0, sunk:false};
+  p.ships[idx] = s;
+  cellsOf(s).forEach(([rr,cc])=>p.occ[rr][cc]=idx);
+}
+function removeShip(p, idx){
+  const s = p.ships[idx]; if(!s) return;
+  cellsOf(s).forEach(([rr,cc])=>p.occ[rr][cc]=-1);
+  p.ships[idx] = null;
+}
+function randomFleet(p){
+  p.ships = []; p.occ.forEach(row=>row.fill(-1));
+  FLEET.forEach((f,idx)=>{
+    for(let tries=0;tries<500;tries++){
+      const h = Math.random()<.5, r = Math.floor(Math.random()*10), c = Math.floor(Math.random()*10);
+      if(canPlace(p, f.len, r, c, h, -2)){ placeShip(p, idx, r, c, h); break; }
+    }
+  });
+}
+
+/* ---------- telas ---------- */
+function show(id){ ['menu','place','battle'].forEach(s=>$(s).hidden = s!==id); $('pass').hidden = true; $('win').hidden = true; scrollTo(0,0); }
+function passTo(title, text, btn, fn){
+  $('passTitle').textContent = title; $('passText').textContent = text; $('passGo').textContent = btn;
+  $('pass').hidden = false;
+  $('passGo').onclick = ()=>{ $('pass').hidden = true; fn(); };
+  $('passGo').focus();
+}
+
+$('start').onclick = ()=>{
+  const n1 = $('n1').value.trim()||'Capitão 1', n2 = $('n2').value.trim()||'Capitão 2';
+  bonus = $('bonus').checked;
+  P = [newPlayer(n1), newPlayer(n2)];
+  passTo(`Capitão ${n1}`, 'Esconda sua frota. O outro capitão não pode espiar!', 'Esconder minha frota', ()=>startPlacing(0));
+};
+
+/* ---------- posicionamento ---------- */
+let PL = null, PB = null;
+function startPlacing(i){
+  show('place');
+  PL = {i, sel:0, horiz:true, hover:null};
+  $('placeTitle').textContent = `Capitão ${P[i].name}, posicione sua frota`;
+  PB = makeBoard($('placeBoard'));
+  PB.board.addEventListener('contextmenu', e=>{ e.preventDefault(); rotate(); });
+  PB.board.addEventListener('mouseleave', ()=>{ PL.hover=null; drawPlace(); });
+  PB.cells.flat().forEach(b=>{
+    b.addEventListener('mouseenter', ()=>{ PL.hover=[+b.dataset.r,+b.dataset.c]; drawPreview(); });
+    b.addEventListener('click', ()=>placeClick(+b.dataset.r, +b.dataset.c));
+  });
+  drawPlace();
+}
+function placeClick(r, c){
+  const p = P[PL.i];
+  const o = p.occ[r][c];
+  if(o!==-1 && PL.sel==null){ PL.sel = o; PL.horiz = p.ships[o].horiz; removeShip(p, o); drawPlace(); return; }
+  if(PL.sel==null) return;
+  if(o!==-1 && o!==PL.sel && !canPlace(p, FLEET[PL.sel].len, r, c, PL.horiz, PL.sel)){
+    // trocar de navio selecionado
+    PL.sel = o; PL.horiz = p.ships[o].horiz; removeShip(p, o); drawPlace(); return;
+  }
+  if(canPlace(p, FLEET[PL.sel].len, r, c, PL.horiz, PL.sel)){
+    placeShip(p, PL.sel, r, c, PL.horiz);
+    const el = PB.ships.lastChild;
+    const next = FLEET.findIndex((_,k)=>!p.ships[k]);
+    PL.sel = next===-1 ? null : next;
+    drawPlace();
+    const added = [...PB.ships.children].find(e=>+e.dataset.idx===p.occ[r][c]);
+    if(added) added.firstChild.animate([{transform:'translateY(-30%) scale(1.1)',opacity:.3},{transform:'none',opacity:1}],{duration:T(300),easing:'cubic-bezier(.3,1.6,.5,1)'});
+    const s = p.ships[p.occ[r][c]]; if(s) cellsOf(s).forEach(([rr,cc])=>splash(PB, rr, cc));
+  }
+}
+function rotate(){ PL.horiz = !PL.horiz; drawPreview(); }
+document.addEventListener('keydown', e=>{ if((e.key==='r'||e.key==='R') && !$('place').hidden) rotate(); });
+$('rotate').onclick = rotate;
+$('random').onclick = ()=>{ randomFleet(P[PL.i]); PL.sel=null; drawPlace(); P[PL.i].ships.forEach(s=>s&&cellsOf(s).forEach(([r,c])=>splash(PB,r,c))); };
+$('clear').onclick = ()=>{ const p=P[PL.i]; FLEET.forEach((_,k)=>removeShip(p,k)); PL.sel=0; drawPlace(); };
+$('ready').onclick = ()=>{
+  if(PL.i===0) passTo(`Capitão ${P[1].name}`, `Agora é sua vez de esconder a frota. Capitão ${P[0].name}, nada de espiar!`, 'Esconder minha frota', ()=>startPlacing(1));
+  else { cur = 0; passTo(`Capitão ${P[0].name}`, 'As frotas estão escondidas. Você dispara primeiro!', 'Ao ataque!', startBattle); }
+};
+function drawPlace(){
+  const p = P[PL.i];
+  PB.ships.innerHTML = '';
+  p.ships.forEach(s=>{ if(s){ const el = shipEl(PB, s); el.dataset.idx = s.idx; } });
+  const dock = $('dock'); dock.innerHTML = '';
+  FLEET.forEach((f,k)=>{
+    const b = document.createElement('button');
+    b.className = (PL.sel===k?'sel ':'') + (p.ships[k]?'done':'');
+    b.innerHTML = shipSVG(f.len) + `<span>${f.name}</span><span class="len">${f.len} casas</span>`;
+    b.onclick = ()=>{ if(p.ships[k]){ PL.horiz = p.ships[k].horiz; removeShip(p,k); } PL.sel = k; drawPlace(); };
+    dock.appendChild(b);
+  });
+  $('ready').disabled = FLEET.some((_,k)=>!p.ships[k]);
+  drawPreview();
+}
+function drawPreview(){
+  PB.cells.flat().forEach(b=>b.classList.remove('prev-ok','prev-bad'));
+  if(!PL.hover || PL.sel==null) return;
+  const [r,c] = PL.hover, len = FLEET[PL.sel].len;
+  const ok = canPlace(P[PL.i], len, r, c, PL.horiz, PL.sel);
+  for(let i=0;i<len;i++){
+    const rr = PL.horiz?r:r+i, cc = PL.horiz?c+i:c;
+    if(rr<10&&cc<10) PB.cells[rr][cc].classList.add(ok?'prev-ok':'prev-bad');
+  }
+}
+
+/* ---------- batalha ---------- */
+let TB = null, OB = null;
+function startBattle(){ show('battle'); renderBattle(); say(`Capitão ${P[cur].name}, escolha onde disparar!`); }
+function renderBattle(){
+  const att = P[cur], def = P[1-cur];
+  $('turn').textContent = `Vez de ${att.name}`;
+  $('targetLabel').textContent = `Mares de ${def.name}`;
+  $('enemyFleetTitle').textContent = `Frota de ${def.name}`;
+  TB = makeBoard($('targetBoard'), 'target');
+  OB = makeBoard($('ownBoard'), 'small');
+  OB.cells.flat().forEach(b=>{ b.tabIndex=-1; b.style.cursor='default'; });
+  for(let r=0;r<10;r++) for(let c=0;c<10;c++){
+    markCell(TB.cells[r][c], def.shots[r][c]);
+    markCell(OB.cells[r][c], att.shots[r][c]);
+    TB.cells[r][c].onclick = ()=>fire(r,c);
+  }
+  def.ships.forEach(s=>{ if(s.sunk){ shipEl(TB, s).classList.add('wreck'); cellsOf(s).forEach(([r,c])=>TB.cells[r][c].classList.add('sunk')); } });
+  att.ships.forEach(s=>{ const el = shipEl(OB, s); if(s.sunk) el.classList.add('wreck'); });
+  drawFleet();
+}
+function markCell(b, v){ b.classList.toggle('miss', v===1); b.classList.toggle('hit', v===2); b.classList.toggle('shot', v>0); }
+function drawFleet(){
+  const att = P[cur], def = P[1-cur];
+  $('enemyFleet').innerHTML = def.ships.map(s=>`<div class="${s.sunk?'gone':''}">${shipSVG(s.len)}<span>${s.name}${s.sunk?' (afundado)':''}</span></div>`).join('');
+  const acc = att.stats.shots ? Math.round(100*att.stats.hits/att.stats.shots) : 0;
+  $('stats').textContent = `Tiros: ${att.stats.shots} · Acertos: ${att.stats.hits} · Pontaria: ${acc}%`;
+}
+let sayT = 0;
+function say(t){
+  const b = $('say'); b.textContent = t;
+  b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+  const pa = $('parrot'); pa.classList.remove('talk'); void pa.getBoundingClientRect(); pa.classList.add('talk');
+}
+async function fire(r, c){
+  const att = P[cur], def = P[1-cur];
+  if(busy || def.shots[r][c]) return;
+  busy = true; TB.board.classList.add('locked');
+  await cannonball(TB, r, c);
+  att.stats.shots++;
+  const idx = def.occ[r][c];
+  let hit = false;
+  if(idx<0){
+    def.shots[r][c] = 1; splash(TB, r, c); markCell(TB.cells[r][c], 1);
+    say(pick(SAY.miss));
+  } else {
+    hit = true; att.stats.hits++;
+    def.shots[r][c] = 2; explosion(TB, r, c); markCell(TB.cells[r][c], 2);
+    const s = def.ships[idx]; s.hits++;
+    if(s.hits===s.len){
+      s.sunk = true;
+      say(pick(SAY.sunk).replace('{s}', s.name));
+      await wait(250);
+      await sinkShip(TB, s);
+      cellsOf(s).forEach(([rr,cc])=>TB.cells[rr][cc].classList.add('sunk'));
+    } else say(pick(SAY.hit));
+  }
+  drawFleet();
+  if(def.ships.every(s=>s.sunk)){ await wait(700); return victory(); }
+  if(hit && bonus){
+    $('say').textContent += SAY.again;
+    busy = false; TB.board.classList.remove('locked'); return;
+  }
+  await wait(1400);
+  const nxt = P[1-cur];
+  passTo(`Vez de ${nxt.name}`, `Passe o aparelho para o Capitão ${nxt.name}. Nada de espiar, marujo!`, `Sou ${nxt.name}, mostrar meu mapa`, ()=>{
+    cur = 1-cur; busy = false; renderBattle(); say(`Capitão ${P[cur].name}, sua vez de disparar!`);
+  });
+}
+function victory(){
+  const w = P[cur];
+  $('winTitle').textContent = `${w.name} conquistou o tesouro!`;
+  $('score').innerHTML = '<tr><th>Capitão</th><th>Tiros</th><th>Acertos</th><th>Pontaria</th></tr>' +
+    P.map(p=>`<tr><td>${p.name}</td><td>${p.stats.shots}</td><td>${p.stats.hits}</td><td>${p.stats.shots?Math.round(100*p.stats.hits/p.stats.shots):0}%</td></tr>`).join('');
+  $('win').hidden = false;
+  if(!RM) for(let i=0;i<45;i++){
+    const coin = document.createElement('div'); coin.className='coin';
+    coin.style.left = (Math.random()*100)+'vw';
+    document.body.appendChild(coin);
+    coin.animate([{transform:'translateY(0) rotateY(0)'},{transform:`translateY(${innerHeight+60}px) rotateY(${720+Math.random()*720}deg)`}],
+      {duration:1800+Math.random()*1800, delay:Math.random()*1500, easing:'ease-in', fill:'both'}).finished.then(()=>coin.remove());
+  }
+  busy = false;
+}
+$('again').onclick = ()=>{ $('win').hidden = true; show('menu'); };
+})();
+</script>
+</body>
+</html>
