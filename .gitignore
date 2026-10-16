@@ -1,0 +1,7 @@
+# Keep prior visual explorations locally; publish the approved direction.
+arte/3d/
+arte/cartoon/
+arte/conceitos/*
+!arte/conceitos/galeao-misto-3d-vermelho.png
+docs/art-provenance.json
+docs/art-provenance-cartoon.json

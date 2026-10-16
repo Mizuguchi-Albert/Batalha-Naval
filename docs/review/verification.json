@@ -1,0 +1,28 @@
+{
+  "checks": [
+    "Desktop menu, assets and Bryan/Albert defaults",
+    "Randomize, clear and rotate fleet",
+    "Complete local battle, 17 hits, five sinkings and victory with reduced motion",
+    "Normal-motion splash and local handover",
+    "Two-tab room, hidden fleets, synchronized hits, sinking and return shot",
+    "Disconnect overlay",
+    "No page errors or missing local resources"
+  ],
+  "errors": [],
+  "missing": [],
+  "screenshots": "docs/review",
+  "responsiveWidths": [
+    320,
+    360,
+    390,
+    650,
+    768,
+    900,
+    1024,
+    1366
+  ],
+  "limitations": [
+    "Two-player network flow verified with BroadcastChannel test transport in two tabs; physical-device WebRTC/PeerJS was not tested.",
+    "Responsive mobile layout and touch media conditions verified in Chromium emulation; no physical Android/iOS test."
+  ]
+}
